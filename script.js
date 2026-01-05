@@ -80,6 +80,9 @@ const handleOutgoingMessage = (e, fromInitial = false) => {
   if (isFirstMessage) {
     document.body.classList.add("chat-started")
     isFirstMessage = false
+
+    // Copy content to the main chat input to keep context smooth
+    messageInput.value = userData.message
   }
 
   const messageContent = `<div class="message-text"></div>
@@ -171,7 +174,7 @@ minimizeButton.addEventListener("click", () => {
 })
 
 // Emoji picker
-const EmojiMart = window.EmojiMart // Declare EmojiMart variable
+const EmojiMart = window.EmojiMart
 const picker = new EmojiMart.Picker({
   theme: "light",
   skinTonePosition: "none",
