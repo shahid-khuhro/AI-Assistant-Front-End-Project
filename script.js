@@ -12,8 +12,9 @@ const fileName = document.querySelector(".file-name")
 const fileRemoveButton = document.querySelector(".file-remove")
 const minimizeButton = document.querySelector("#minimize-chatbot")
 
-const API_KEY = "AIzaSyAChlDIhTYXQzyKIXCZZJkwtckvJOzU7MI"
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`
+const API_KEY = "AIzaSyCrKMZeEqmbDI0LR6sbR6Cbpyyia9Wk7-I"
+// Change gemini-2.5-flash to gemini-2.5-flash-lite
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${API_KEY}`;
 
 let isFirstMessage = true
 
@@ -32,8 +33,8 @@ const createMessageElement = (content, ...classes) => {
   return div
 }
 
-const generateBotResponse = async (incomingMessageDiv) => {
-  const messageElement = incomingMessageDiv.querySelector(".message-text")
+const generateBotResponse = async (incomingMessageDiv, retryCount = 0) => {
+  const messageElement = incomingMessageDiv.querySelector(".message-text");
 
   const requestOptions = {
     method: "POST",
@@ -45,25 +46,38 @@ const generateBotResponse = async (incomingMessageDiv) => {
         },
       ],
     }),
-  }
+  };
 
   try {
-    const response = await fetch(API_URL, requestOptions)
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.error.message)
+    const response = await fetch(API_URL, requestOptions);
+    const data = await response.json();
 
-    const apiResponseText = data.candidates[0].content.parts[0].text.replace(/\*\*(.*?)\*\*/g, "$1").trim()
-    messageElement.innerText = apiResponseText
+    // HANDLE HIGH DEMAND / RATE LIMITS WITH RETRY
+    if (response.status === 503 || response.status === 429) {
+      if (retryCount < 3) { 
+        messageElement.innerText = "Server busy, retrying...";
+        await new Promise(res => setTimeout(res, 2000)); // Wait 2 seconds
+        return generateBotResponse(incomingMessageDiv, retryCount + 1);
+      }
+    }
+
+    if (!response.ok) throw new Error(data.error.message);
+
+    const apiResponseText = data.candidates[0].content.parts[0].text.replace(/\*\*(.*?)\*\*/g, "$1").trim();
+    messageElement.innerText = apiResponseText;
   } catch (error) {
-    console.log(error)
-    messageElement.innerText = error.message
-    messageElement.style.color = "#ef4444"
+    console.log(error);
+    messageElement.innerText = error.message;
+    messageElement.style.color = "#ef4444";
   } finally {
-    userData.file = {}
-    incomingMessageDiv.classList.remove("thinking")
-    chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" })
+    // Only clear file and indicator if we aren't in the middle of a retry
+    if (retryCount === 0 || !messageElement.innerText.includes("retrying")) {
+      userData.file = {};
+      incomingMessageDiv.classList.remove("thinking");
+      chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
+    }
   }
-}
+};
 
 const handleOutgoingMessage = (e, fromInitial = false) => {
   e.preventDefault()
@@ -82,7 +96,7 @@ const handleOutgoingMessage = (e, fromInitial = false) => {
     isFirstMessage = false
 
     // Copy content to the main chat input to keep context smooth
-    messageInput.value = userData.message
+    // messageInput.value = userData.message
   }
 
   const messageContent = `<div class="message-text"></div>
